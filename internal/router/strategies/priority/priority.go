@@ -89,6 +89,7 @@ func (s *Strategy) Run(
 	)
 
 	orderedCandidates := s.buildOrderedCandidates(selectedModel, selection.allVisible)
+	orderedCandidates = s.appendVisibleFallback(ctx, orderedCandidates, selection.allVisible)
 
 	return selectedModel, "", orderedCandidates, nil
 }
@@ -160,6 +161,44 @@ func (s *Strategy) buildOrderedCandidates(selectedModel string, visibleCandidate
 	}
 
 	return result
+}
+
+func containsModel(models []string, modelName string) bool {
+	for _, m := range models {
+		if m == modelName {
+			return true
+		}
+	}
+	return false
+}
+
+func findCandidateByName(candidates []*ModelCandidate, modelName string) *ModelCandidate {
+	for _, c := range candidates {
+		if c.modelName == modelName {
+			return c
+		}
+	}
+	return nil
+}
+
+func (s *Strategy) appendVisibleFallback(
+	ctx context.Context,
+	ordered []string,
+	visibleCandidates []*ModelCandidate,
+) []string {
+	if s.cfg.FallbackModelName == "" {
+		return ordered
+	}
+	if containsModel(ordered, s.cfg.FallbackModelName) {
+		return ordered
+	}
+	fallback := findCandidateByName(visibleCandidates, s.cfg.FallbackModelName)
+	if fallback == nil {
+		logger.WarnC(ctx, "priority router: fallback model is not visible to current user",
+			zap.String("fallbackModelName", s.cfg.FallbackModelName))
+		return ordered
+	}
+	return append(ordered, fallback.modelName)
 }
 
 func isCandidateVisible(candidate *ModelCandidate, identity *model.Identity, now time.Time) bool {
