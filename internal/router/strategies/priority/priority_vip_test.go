@@ -252,3 +252,29 @@ func TestPriorityRouterDoesNotDuplicateVisibleFallback(t *testing.T) {
 		t.Fatalf("ordered = %#v, want %#v", ordered, want)
 	}
 }
+
+func TestPriorityRouterReturnsErrorWhenNoCandidateVisible(t *testing.T) {
+	strategy, err := New(config.PriorityConfig{
+		Candidates: []config.PriorityCandidate{
+			{ModelName: "vip-model", Enabled: true, Priority: 100, Weight: 1, MinVipLevel: 1},
+		},
+		FallbackModelName: "vip-model",
+	})
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+
+	selected, _, ordered, err := strategy.Run(context.Background(), nil, nil, testAutoRequest())
+	if err == nil {
+		t.Fatal("expected error when no candidates are visible")
+	}
+	if selected != "" {
+		t.Fatalf("selected = %q, want empty", selected)
+	}
+	if ordered != nil {
+		t.Fatalf("ordered = %#v, want nil", ordered)
+	}
+	if !strings.Contains(err.Error(), "no visible candidates") {
+		t.Fatalf("error = %v, want no visible candidates", err)
+	}
+}
