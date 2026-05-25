@@ -6,10 +6,11 @@ import (
 
 // ModelCandidate represents a candidate model with its configuration
 type ModelCandidate struct {
-	modelName string
-	priority  int
-	weight    int
-	enabled   bool
+	modelName   string
+	priority    int
+	weight      int
+	enabled     bool
+	minVipLevel int
 }
 
 // PriorityGroup represents a group of models with the same priority level

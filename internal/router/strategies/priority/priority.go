@@ -18,10 +18,10 @@ import (
 
 // Strategy implements the priority-based round-robin routing strategy
 type Strategy struct {
-	cfg             config.PriorityConfig
-	priorityGroups  map[int]*PriorityGroup
-	mu              sync.RWMutex
-	lowestPriority  int // Track the highest priority (lowest number)
+	cfg            config.PriorityConfig
+	priorityGroups map[int]*PriorityGroup
+	mu             sync.RWMutex
+	lowestPriority int // Track the highest priority (lowest number)
 }
 
 // New creates a new priority strategy instance
@@ -120,10 +120,11 @@ func (s *Strategy) initializePriorityGroups() error {
 
 		// Add model to group
 		model := &ModelCandidate{
-			modelName: candidate.ModelName,
-			priority:  candidate.Priority,
-			weight:    candidate.Weight,
-			enabled:   candidate.Enabled,
+			modelName:   candidate.ModelName,
+			priority:    candidate.Priority,
+			weight:      candidate.Weight,
+			enabled:     candidate.Enabled,
+			minVipLevel: candidate.MinVipLevel,
 		}
 		group.addModel(model)
 
@@ -214,6 +215,9 @@ func validateConfig(cfg config.PriorityConfig) error {
 		if candidate.Weight < 1 || candidate.Weight > 100 {
 			return fmt.Errorf("weight must be between 1 and 100 for model %s", candidate.ModelName)
 		}
+		if candidate.MinVipLevel < 0 {
+			return fmt.Errorf("minVipLevel must be >= 0 for model %s", candidate.ModelName)
+		}
 		if candidate.Enabled {
 			hasEnabled = true
 		}
@@ -221,6 +225,19 @@ func validateConfig(cfg config.PriorityConfig) error {
 
 	if !hasEnabled {
 		return errors.New("at least one candidate must be enabled")
+	}
+
+	if cfg.FallbackModelName != "" {
+		found := false
+		for _, candidate := range cfg.Candidates {
+			if candidate.ModelName == cfg.FallbackModelName {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("fallbackModelName %q must be present in candidates", cfg.FallbackModelName)
+		}
 	}
 
 	return nil
