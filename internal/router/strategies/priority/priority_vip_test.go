@@ -201,6 +201,32 @@ func TestPriorityRouterAppendsVisibleFallbackWhenMissingFromOrder(t *testing.T) 
 	}
 }
 
+func TestAppendVisibleFallbackAppendsWhenMissingFromOrder(t *testing.T) {
+	strategy, err := New(config.PriorityConfig{
+		Candidates: []config.PriorityCandidate{
+			{ModelName: "primary", Enabled: true, Priority: 100, Weight: 1, MinVipLevel: 0},
+			{ModelName: "fallback", Enabled: true, Priority: 200, Weight: 1, MinVipLevel: 0},
+		},
+		FallbackModelName: "fallback",
+	})
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+
+	ordered := []string{"primary"}
+	visible := []*ModelCandidate{
+		{modelName: "primary", priority: 100, weight: 1, enabled: true, minVipLevel: 0},
+		{modelName: "fallback", priority: 200, weight: 1, enabled: true, minVipLevel: 0},
+	}
+
+	result := strategy.appendVisibleFallback(context.Background(), ordered, visible)
+
+	want := []string{"primary", "fallback"}
+	if !reflect.DeepEqual(result, want) {
+		t.Fatalf("result = %#v, want %#v", result, want)
+	}
+}
+
 func TestPriorityRouterDoesNotDuplicateVisibleFallback(t *testing.T) {
 	strategy, err := New(config.PriorityConfig{
 		Candidates: []config.PriorityCandidate{
