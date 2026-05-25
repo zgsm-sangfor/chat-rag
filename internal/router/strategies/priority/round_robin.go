@@ -1,10 +1,11 @@
 package priority
 
 import (
+	"fmt"
+	"strings"
 	"sync"
 )
 
-// ModelCandidate represents a candidate model with its configuration
 type ModelCandidate struct {
 	modelName   string
 	priority    int
@@ -13,80 +14,33 @@ type ModelCandidate struct {
 	minVipLevel int
 }
 
-// PriorityGroup represents a group of models with the same priority level
 type PriorityGroup struct {
-	priority       int
-	models         []*ModelCandidate
-	currentWeights []int
-	mu             sync.Mutex
+	priority int
+	models   []*ModelCandidate
+	states   map[string][]int
+	mu       sync.Mutex
 }
 
-// newPriorityGroup creates a new priority group
 func newPriorityGroup(priority int) *PriorityGroup {
 	return &PriorityGroup{
-		priority:       priority,
-		models:         make([]*ModelCandidate, 0),
-		currentWeights: make([]int, 0),
+		priority: priority,
+		models:   make([]*ModelCandidate, 0),
+		states:   make(map[string][]int),
 	}
 }
 
-// addModel adds a model to the priority group
 func (pg *PriorityGroup) addModel(model *ModelCandidate) {
 	pg.models = append(pg.models, model)
-	pg.currentWeights = append(pg.currentWeights, 0)
 }
 
-// selectModelByRoundRobin selects a model using smooth weighted round-robin algorithm
-// This method is thread-safe and implements the algorithm from the design document:
-// 1. Each model has a configured weight and a current weight (initially 0)
-// 2. For each selection:
-//   - Add configured weight to current weight for all models
-//   - Select the model with the highest current weight
-//   - Subtract total weight from the selected model's current weight
-func (pg *PriorityGroup) selectModelByRoundRobin() string {
-	// Optimization: If only one model, return directly without locking
-	// This provides zero-lock overhead for single-model scenarios
-	if len(pg.models) == 1 {
-		return pg.models[0].modelName
+func buildVisibleSetKey(visible []*ModelCandidate) string {
+	var sb strings.Builder
+	for _, model := range visible {
+		fmt.Fprintf(&sb, "%d:%s", len(model.modelName), model.modelName)
 	}
-
-	pg.mu.Lock()
-	defer pg.mu.Unlock()
-
-	// Calculate total weight
-	totalWeight := 0
-	for _, model := range pg.models {
-		totalWeight += model.weight
-	}
-
-	// Find the model with the maximum current weight after adding configured weights
-	maxWeight := -1
-	selectedIdx := -1
-
-	for i, model := range pg.models {
-		// Add configured weight to current weight
-		pg.currentWeights[i] += model.weight
-
-		// Find the model with maximum current weight
-		if pg.currentWeights[i] > maxWeight {
-			maxWeight = pg.currentWeights[i]
-			selectedIdx = i
-		}
-	}
-
-	// Subtract total weight from the selected model's current weight
-	pg.currentWeights[selectedIdx] -= totalWeight
-
-	return pg.models[selectedIdx].modelName
+	return sb.String()
 }
 
-// getModels returns all models in the group sorted by weight (descending)
-func (pg *PriorityGroup) getModels() []*ModelCandidate {
-	return pg.models
-}
-
-// selectVisibleModelByRoundRobin is a temporary adapter that selects from visible candidates only.
-// Task 3 will replace this with per-visible-set isolated round-robin state.
 func (pg *PriorityGroup) selectVisibleModelByRoundRobin(visible []*ModelCandidate) string {
 	if len(visible) == 0 {
 		return ""
@@ -94,5 +48,38 @@ func (pg *PriorityGroup) selectVisibleModelByRoundRobin(visible []*ModelCandidat
 	if len(visible) == 1 {
 		return visible[0].modelName
 	}
-	return visible[0].modelName
+
+	key := buildVisibleSetKey(visible)
+
+	pg.mu.Lock()
+	defer pg.mu.Unlock()
+
+	weights := pg.states[key]
+	if len(weights) != len(visible) {
+		weights = make([]int, len(visible))
+	}
+
+	totalWeight := 0
+	for _, model := range visible {
+		totalWeight += model.weight
+	}
+
+	maxWeight := -1
+	selectedIdx := 0
+	for i, model := range visible {
+		weights[i] += model.weight
+		if weights[i] > maxWeight {
+			maxWeight = weights[i]
+			selectedIdx = i
+		}
+	}
+
+	weights[selectedIdx] -= totalWeight
+	pg.states[key] = weights
+
+	return visible[selectedIdx].modelName
+}
+
+func (pg *PriorityGroup) getModels() []*ModelCandidate {
+	return pg.models
 }
