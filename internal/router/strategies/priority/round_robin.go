@@ -40,9 +40,9 @@ func (pg *PriorityGroup) addModel(model *ModelCandidate) {
 // This method is thread-safe and implements the algorithm from the design document:
 // 1. Each model has a configured weight and a current weight (initially 0)
 // 2. For each selection:
-//    - Add configured weight to current weight for all models
-//    - Select the model with the highest current weight
-//    - Subtract total weight from the selected model's current weight
+//   - Add configured weight to current weight for all models
+//   - Select the model with the highest current weight
+//   - Subtract total weight from the selected model's current weight
 func (pg *PriorityGroup) selectModelByRoundRobin() string {
 	// Optimization: If only one model, return directly without locking
 	// This provides zero-lock overhead for single-model scenarios
@@ -83,4 +83,16 @@ func (pg *PriorityGroup) selectModelByRoundRobin() string {
 // getModels returns all models in the group sorted by weight (descending)
 func (pg *PriorityGroup) getModels() []*ModelCandidate {
 	return pg.models
+}
+
+// selectVisibleModelByRoundRobin is a temporary adapter that selects from visible candidates only.
+// Task 3 will replace this with per-visible-set isolated round-robin state.
+func (pg *PriorityGroup) selectVisibleModelByRoundRobin(visible []*ModelCandidate) string {
+	if len(visible) == 0 {
+		return ""
+	}
+	if len(visible) == 1 {
+		return visible[0].modelName
+	}
+	return visible[0].modelName
 }

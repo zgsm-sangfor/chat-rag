@@ -2,6 +2,7 @@ package priority
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -69,5 +70,81 @@ func TestValidateConfigRejectsFallbackMissingFromCandidates(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "must be present in candidates") {
 		t.Fatalf("expected fallback validation error, got %v", err)
+	}
+}
+
+func TestPriorityRouterOrdinaryUserSkipsVipOnlyCandidates(t *testing.T) {
+	strategy, err := New(config.PriorityConfig{
+		Candidates: []config.PriorityCandidate{
+			{ModelName: "vip-model", Enabled: true, Priority: 100, Weight: 1, MinVipLevel: 1},
+			{ModelName: "normal-model", Enabled: true, Priority: 200, Weight: 1, MinVipLevel: 0},
+		},
+	})
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+
+	selected, _, ordered, err := strategy.Run(context.Background(), nil, nil, testAutoRequest())
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if selected != "normal-model" {
+		t.Fatalf("selected = %q, want normal-model", selected)
+	}
+	want := []string{"normal-model"}
+	if !reflect.DeepEqual(ordered, want) {
+		t.Fatalf("ordered = %#v, want %#v", ordered, want)
+	}
+}
+
+func TestPriorityRouterVipUserCanUseVipOnlyCandidates(t *testing.T) {
+	strategy, err := New(config.PriorityConfig{
+		Candidates: []config.PriorityCandidate{
+			{ModelName: "vip-model", Enabled: true, Priority: 100, Weight: 1, MinVipLevel: 1},
+			{ModelName: "normal-model", Enabled: true, Priority: 200, Weight: 1, MinVipLevel: 0},
+		},
+	})
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+
+	selected, _, ordered, err := strategy.Run(contextWithIdentity(testIdentity(1, nil)), nil, nil, testAutoRequest())
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if selected != "vip-model" {
+		t.Fatalf("selected = %q, want vip-model", selected)
+	}
+	want := []string{"vip-model", "normal-model"}
+	if !reflect.DeepEqual(ordered, want) {
+		t.Fatalf("ordered = %#v, want %#v", ordered, want)
+	}
+}
+
+func TestPriorityRouterExpiredVipUserSkipsVipOnlyCandidates(t *testing.T) {
+	expired := time.Now().Add(-time.Minute)
+	strategy, err := New(config.PriorityConfig{
+		Candidates: []config.PriorityCandidate{
+			{ModelName: "vip-model", Enabled: true, Priority: 100, Weight: 1, MinVipLevel: 1},
+			{ModelName: "normal-model", Enabled: true, Priority: 200, Weight: 1, MinVipLevel: 0},
+		},
+	})
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+
+	selected, _, ordered, err := strategy.Run(contextWithIdentity(testIdentity(1, &expired)), nil, nil, testAutoRequest())
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if selected != "normal-model" {
+		t.Fatalf("selected = %q, want normal-model", selected)
+	}
+	want := []string{"normal-model"}
+	if !reflect.DeepEqual(ordered, want) {
+		t.Fatalf("ordered = %#v, want %#v", ordered, want)
 	}
 }
