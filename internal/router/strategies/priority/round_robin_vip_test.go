@@ -40,6 +40,39 @@ func TestBuildVisibleSetKeyUsesLengthPrefixEncoding(t *testing.T) {
 	}
 }
 
+func TestWeightedRoundRobinDistributesByWeight(t *testing.T) {
+	group := newPriorityGroup(100)
+	group.addModel(&ModelCandidate{modelName: "heavy", priority: 100, weight: 5})
+	group.addModel(&ModelCandidate{modelName: "light", priority: 100, weight: 1})
+
+	visible := []*ModelCandidate{group.models[0], group.models[1]}
+
+	counts := map[string]int{}
+	for i := 0; i < 6; i++ {
+		selected := group.selectVisibleModelByRoundRobin(visible)
+		counts[selected]++
+	}
+
+	if counts["heavy"] != 5 {
+		t.Fatalf("heavy count = %d, want 5 (over 6 selections)", counts["heavy"])
+	}
+	if counts["light"] != 1 {
+		t.Fatalf("light count = %d, want 1 (over 6 selections)", counts["light"])
+	}
+}
+
+func TestBuildVisibleSetKeyDiffersByInputOrder(t *testing.T) {
+	a := &ModelCandidate{modelName: "alpha"}
+	b := &ModelCandidate{modelName: "beta"}
+
+	keyAB := buildVisibleSetKey([]*ModelCandidate{a, b})
+	keyBA := buildVisibleSetKey([]*ModelCandidate{b, a})
+
+	if keyAB == keyBA {
+		t.Fatalf("expected distinct keys for different input orders, got %q == %q", keyAB, keyBA)
+	}
+}
+
 func TestBuildVisibleSetKeyAvoidsSeparatorCollision(t *testing.T) {
 	one := buildVisibleSetKey([]*ModelCandidate{{modelName: "a|b"}})
 	two := buildVisibleSetKey([]*ModelCandidate{{modelName: "a"}, {modelName: "b"}})
