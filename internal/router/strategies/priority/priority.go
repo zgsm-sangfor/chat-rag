@@ -23,7 +23,6 @@ type Strategy struct {
 	cfg            config.PriorityConfig
 	priorityGroups map[int]*PriorityGroup
 	mu             sync.RWMutex
-	lowestPriority int // Track the highest priority (lowest number)
 }
 
 // New creates a new priority strategy instance
@@ -35,7 +34,6 @@ func New(cfg config.PriorityConfig) (*Strategy, error) {
 	s := &Strategy{
 		cfg:            cfg,
 		priorityGroups: make(map[int]*PriorityGroup),
-		lowestPriority: 999,
 	}
 
 	// Initialize priority groups from config
@@ -117,11 +115,6 @@ func (s *Strategy) initializePriorityGroups() error {
 			minVipLevel: candidate.MinVipLevel,
 		}
 		group.addModel(model)
-
-		// Track lowest priority number (highest priority)
-		if candidate.Priority < s.lowestPriority {
-			s.lowestPriority = candidate.Priority
-		}
 	}
 
 	if len(s.priorityGroups) == 0 {
@@ -129,15 +122,6 @@ func (s *Strategy) initializePriorityGroups() error {
 	}
 
 	return nil
-}
-
-// filterEnabledCandidates returns all enabled candidates
-func (s *Strategy) filterEnabledCandidates() []*ModelCandidate {
-	candidates := make([]*ModelCandidate, 0)
-	for _, group := range s.priorityGroups {
-		candidates = append(candidates, group.getModels()...)
-	}
-	return candidates
 }
 
 // buildOrderedCandidates builds an ordered list of candidates for degradation
