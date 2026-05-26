@@ -58,18 +58,28 @@ func contextWithIdentity(identity *model.Identity) context.Context {
 	return context.WithValue(context.Background(), model.IdentityContextKey, identity)
 }
 
-func TestValidateConfigRejectsFallbackMissingFromCandidates(t *testing.T) {
-	err := validateConfig(config.PriorityConfig{
+func TestFallbackNotInCandidatesNewSucceedsRunSkips(t *testing.T) {
+	strategy, err := New(config.PriorityConfig{
 		Candidates: []config.PriorityCandidate{
 			{ModelName: "normal-model", Enabled: true, Priority: 100, Weight: 1},
 		},
 		FallbackModelName: "missing-fallback",
 	})
-	if err == nil {
-		t.Fatal("expected missing fallback to be rejected")
+	if err != nil {
+		t.Fatalf("New should succeed when fallback is not in candidates, got error: %v", err)
 	}
-	if !strings.Contains(err.Error(), "must be present in candidates") {
-		t.Fatalf("expected fallback validation error, got %v", err)
+
+	selected, _, ordered, err := strategy.Run(context.Background(), nil, nil, testAutoRequest())
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if selected != "normal-model" {
+		t.Fatalf("selected = %q, want normal-model", selected)
+	}
+	want := []string{"normal-model"}
+	if !reflect.DeepEqual(ordered, want) {
+		t.Fatalf("ordered = %#v, want %#v", ordered, want)
 	}
 }
 
@@ -276,5 +286,45 @@ func TestPriorityRouterReturnsErrorWhenNoCandidateVisible(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "no visible candidates") {
 		t.Fatalf("error = %v, want no visible candidates", err)
+	}
+}
+
+func TestOmittedMinVipLevelIsVisibleToOrdinaryUser(t *testing.T) {
+	strategy, err := New(config.PriorityConfig{
+		Candidates: []config.PriorityCandidate{
+			{ModelName: "model-a", Enabled: true, Priority: 100, Weight: 1},
+		},
+	})
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+
+	selected, _, ordered, err := strategy.Run(context.Background(), nil, nil, testAutoRequest())
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if selected != "model-a" {
+		t.Fatalf("selected = %q, want model-a", selected)
+	}
+	want := []string{"model-a"}
+	if !reflect.DeepEqual(ordered, want) {
+		t.Fatalf("ordered = %#v, want %#v", ordered, want)
+	}
+}
+
+func TestIsCandidateDeclaredReturnsTrueForDisabledCandidate(t *testing.T) {
+	strategy, err := New(config.PriorityConfig{
+		Candidates: []config.PriorityCandidate{
+			{ModelName: "enabled-model", Enabled: true, Priority: 100, Weight: 1},
+			{ModelName: "disabled-fallback", Enabled: false, Priority: 200, Weight: 1},
+		},
+	})
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+
+	if !strategy.isCandidateDeclared("disabled-fallback") {
+		t.Fatal("isCandidateDeclared(disabled-fallback) = false, want true")
 	}
 }

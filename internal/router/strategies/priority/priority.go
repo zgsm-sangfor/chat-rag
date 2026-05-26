@@ -178,11 +178,25 @@ func (s *Strategy) appendVisibleFallback(
 	}
 	fallback := findCandidateByName(visibleCandidates, s.cfg.FallbackModelName)
 	if fallback == nil {
-		logger.WarnC(ctx, "priority router: fallback model is not visible to current user",
-			zap.String("fallbackModelName", s.cfg.FallbackModelName))
+		if !s.isCandidateDeclared(s.cfg.FallbackModelName) {
+			logger.WarnC(ctx, "priority router: fallback model is not declared in candidates",
+				zap.String("fallbackModelName", s.cfg.FallbackModelName))
+		} else {
+			logger.WarnC(ctx, "priority router: fallback model is not visible to current user",
+				zap.String("fallbackModelName", s.cfg.FallbackModelName))
+		}
 		return ordered
 	}
 	return append(ordered, fallback.modelName)
+}
+
+func (s *Strategy) isCandidateDeclared(modelName string) bool {
+	for _, c := range s.cfg.Candidates {
+		if c.ModelName == modelName {
+			return true
+		}
+	}
+	return false
 }
 
 func isCandidateVisible(candidate *ModelCandidate, identity *model.Identity, now time.Time) bool {
@@ -278,19 +292,6 @@ func validateConfig(cfg config.PriorityConfig) error {
 
 	if !hasEnabled {
 		return errors.New("at least one candidate must be enabled")
-	}
-
-	if cfg.FallbackModelName != "" {
-		found := false
-		for _, candidate := range cfg.Candidates {
-			if candidate.ModelName == cfg.FallbackModelName {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return fmt.Errorf("fallbackModelName %q must be present in candidates", cfg.FallbackModelName)
-		}
 	}
 
 	return nil
