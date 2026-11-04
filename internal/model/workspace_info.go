@@ -9,7 +9,6 @@ import (
 // metrics reports. All fields are serialized, including missing values.
 type WorkspaceInfo struct {
 	SessionID       string `json:"session_id"`
-	ZgsmTaskID      string `json:"zgsm_task_id"`
 	TaskID          string `json:"task_id"`
 	GitURL          string `json:"git_url"`
 	GitCommit       string `json:"git_commit"`
@@ -28,11 +27,11 @@ type WorkspaceInfo struct {
 }
 
 // NewWorkspaceInfo reads only incoming headers, without deriving missing values
-// from legacy identity fields. A session ID takes precedence over a legacy task ID.
+// from legacy identity fields. Session and task IDs are read independently.
 func NewWorkspaceInfo(headers http.Header) WorkspaceInfo {
 	info := WorkspaceInfo{
 		SessionID:       strings.TrimSpace(headers.Get("X-Session-Id")),
-		ZgsmTaskID:      strings.TrimSpace(headers.Get("zgsm-task-id")),
+		TaskID:          strings.TrimSpace(headers.Get("zgsm-task-id")),
 		GitURL:          strings.TrimSpace(headers.Get("X-Git-Url")),
 		GitCommit:       strings.TrimSpace(headers.Get("X-Git-Commit")),
 		ProjectPath:     strings.TrimSpace(headers.Get("zgsm-project-path")),
@@ -47,10 +46,6 @@ func NewWorkspaceInfo(headers http.Header) WorkspaceInfo {
 		UserAgent:       strings.TrimSpace(headers.Get("User-Agent")),
 		AgentType:       strings.TrimSpace(headers.Get("agent-type")),
 		CostrictVersion: strings.TrimSpace(headers.Get("X-Costrict-Version")),
-	}
-	info.TaskID = info.SessionID
-	if info.TaskID == "" {
-		info.TaskID = info.ZgsmTaskID
 	}
 	return info
 }

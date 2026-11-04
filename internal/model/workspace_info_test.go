@@ -22,7 +22,7 @@ func TestWorkspaceInfoHeadersAndLogJSON(t *testing.T) {
 		headers.Set(strings.ToLower(key), " \t"+value+" \t")
 	}
 	expected := map[string]string{
-		"session_id": "session", "zgsm_task_id": "legacy", "task_id": "session",
+		"session_id": "session", "task_id": "legacy",
 		"git_url": "https://example.com/team/repo.git", "git_commit": "abc123", "project_path": "%2Fproject",
 		"project_id": "project", "workspace_id": "workspace", "workflow_task_id": "workflow-task",
 		"issue_id": "issue", "node_run_id": "node", "request_id": "request", "known_client": "csc",
@@ -54,16 +54,17 @@ func TestWorkspaceInfoHeadersAndLogJSON(t *testing.T) {
 	}
 }
 
-func TestWorkspaceInfoTaskPriority(t *testing.T) {
+func TestWorkspaceInfoIndependentIDs(t *testing.T) {
 	for _, tt := range []struct{ session, legacy, want string }{
-		{"session", "legacy", "session"}, {"session", "", "session"},
+		{"session", "legacy", "legacy"}, {"session", "", ""},
+		{"session", " \t", ""},
 		{" \t", " legacy ", "legacy"}, {"", "", ""},
 	} {
 		headers := make(http.Header)
 		headers.Set("X-Session-Id", tt.session)
 		headers.Set("zgsm-task-id", tt.legacy)
 		got := NewWorkspaceInfo(headers)
-		if got.TaskID != tt.want || got.SessionID != strings.TrimSpace(tt.session) || got.ZgsmTaskID != strings.TrimSpace(tt.legacy) {
+		if got.TaskID != tt.want || got.SessionID != strings.TrimSpace(tt.session) {
 			t.Fatalf("headers %+v: got %+v", tt, got)
 		}
 	}
