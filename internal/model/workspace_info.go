@@ -16,6 +16,9 @@ type WorkspaceInfo struct {
 	ProjectID       string `json:"project_id"`
 	WorkspaceID     string `json:"workspace_id"`
 	WorkflowTaskID  string `json:"workflow_task_id"`
+	WorkflowID      string `json:"workflow_id,omitempty"`
+	WorkflowRunID   string `json:"workflow_run_id,omitempty"`
+	WorkflowNodeID  string `json:"workflow_node_id,omitempty"`
 	IssueID         string `json:"issue_id"`
 	NodeRunID       string `json:"node_run_id"`
 	RequestID       string `json:"request_id"`
@@ -38,6 +41,9 @@ func NewWorkspaceInfo(headers http.Header) WorkspaceInfo {
 		ProjectID:       strings.TrimSpace(headers.Get("X-Project-Id")),
 		WorkspaceID:     strings.TrimSpace(headers.Get("X-Workspace-Id")),
 		WorkflowTaskID:  strings.TrimSpace(headers.Get("X-Workflow-Task-Id")),
+		WorkflowID:      strings.TrimSpace(headers.Get("X-Workflow-Id")),
+		WorkflowRunID:   strings.TrimSpace(headers.Get("X-Workflow-Run-Id")),
+		WorkflowNodeID:  strings.TrimSpace(headers.Get("X-Workflow-Node-Id")),
 		IssueID:         strings.TrimSpace(headers.Get("X-Issue-Id")),
 		NodeRunID:       strings.TrimSpace(headers.Get("X-Node-Run-Id")),
 		RequestID:       strings.TrimSpace(headers.Get("X-Request-Id")),
