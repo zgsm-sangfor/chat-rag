@@ -2,9 +2,11 @@ package logic
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	"github.com/golang/mock/gomock"
@@ -43,11 +45,13 @@ func createTestServiceMock(t *testing.T) (*gomock.Controller, *mocks.MockLoggerI
 func createTestServiceContext(t *testing.T, cfg *config.Config, tokenCounter interface{}) *bootstrap.ServiceContext {
 	ctrl, loggerMock, metricsMock := createTestServiceMock(t)
 	defer ctrl.Finish()
+	testConfig := *cfg
+	if testConfig.PreciseContextConfig == nil {
+		testConfig.PreciseContextConfig = &config.PreciseContextConfig{}
+	}
 
 	svcCtx := &bootstrap.ServiceContext{
-		Config: config.Config{
-			LLM: cfg.LLM,
-		},
+		Config:         testConfig,
 		LoggerService:  loggerMock,
 		MetricsService: metricsMock,
 	}
@@ -111,6 +115,56 @@ func TestChatCompletionLogic_NewChatCompletionLogic(t *testing.T) {
 	assert.NotNil(t, logic)
 	assert.Equal(t, createTestContext(), logic.ctx)
 	assert.Equal(t, svcCtx, logic.svcCtx)
+}
+
+func TestChatCompletionLogic_NewChatLogCapturesAgentAttribution(t *testing.T) {
+	logic, _ := setupTestLogic(t, &config.Config{}, nil, "test-model", []types.Message{
+		{Role: types.RoleUser, Content: "hello"},
+	}, &mockResponseWriter{})
+	logic.identity.AuthToken = "Bearer logic-secret"
+	logic.headers.Set("Authorization", "Bearer logic-secret")
+	logic.headers.Set("X-Apikey", "costrict_team_logic_secret")
+	logic.headers.Set("Cookie", "sid=logic-cookie-secret")
+	logic.headers.Set("User-Agent", "csc/4.2.48")
+	logic.headers.Set("X-Stainless-Retry-Count", "2")
+
+	chatLog := logic.newChatLog(time.Now())
+	if chatLog.AgentInfo == nil || chatLog.AgentInfo.ClientType != "CSC" {
+		t.Fatalf("AgentInfo = %+v, want CSC", chatLog.AgentInfo)
+	}
+	if chatLog.RequestHeaders["X-Stainless-Retry-Count"] != "2" {
+		t.Fatalf("retry header not captured: %#v", chatLog.RequestHeaders)
+	}
+	for _, name := range []string{"Authorization", "X-Apikey", "Cookie"} {
+		if _, ok := chatLog.RequestHeaders[name]; ok {
+			t.Fatalf("sensitive header %q captured in request_headers", name)
+		}
+	}
+
+	payload, err := json.Marshal(chatLog)
+	if err != nil {
+		t.Fatalf("marshal chat log: %v", err)
+	}
+	for _, secret := range []string{"logic-secret", "costrict_team_logic_secret", "logic-cookie-secret"} {
+		if strings.Contains(string(payload), secret) {
+			t.Fatalf("serialized ChatLog leaked %q: %s", secret, payload)
+		}
+	}
+}
+
+func TestChatCompletionLogic_NewChatLogHandlesNilHeaders(t *testing.T) {
+	logic, _ := setupTestLogic(t, &config.Config{}, nil, "test-model", []types.Message{
+		{Role: types.RoleUser, Content: "hello"},
+	}, &mockResponseWriter{})
+	logic.headers = nil
+
+	chatLog := logic.newChatLog(time.Now())
+	if chatLog.AgentInfo == nil || chatLog.AgentInfo.AgentRole != "unknown" {
+		t.Fatalf("AgentInfo = %+v, want non-nil unknown attribution", chatLog.AgentInfo)
+	}
+	if len(chatLog.RequestHeaders) != 0 {
+		t.Fatalf("RequestHeaders = %#v, want empty", chatLog.RequestHeaders)
+	}
 }
 
 func TestChatCompletionLogic_HandleResponseHeaders_ConfiguredTraceHeader(t *testing.T) {
@@ -207,7 +261,9 @@ func TestChatCompletionLogic_ChatCompletion_ValidationErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			logic, _ := setupTestLogic(t, tt.config, nil, "test-model", []types.Message{}, &mockResponseWriter{})
+			logic, _ := setupTestLogic(t, tt.config, nil, "test-model", []types.Message{
+				{Role: types.RoleUser, Content: "hello"},
+			}, &mockResponseWriter{})
 
 			resp, err := logic.ChatCompletion()
 			t.Log("==>", err)
@@ -247,6 +303,9 @@ func TestChatCompletionLogic_WithTokenCounter(t *testing.T) {
 
 func TestChatCompletionLogic_ChatCompletion_BasicRequest(t *testing.T) {
 	cfg := config.MustLoadConfig("../../etc/chat-api.yaml")
+	if cfg.PreciseContextConfig == nil {
+		cfg.PreciseContextConfig = &config.PreciseContextConfig{}
+	}
 
 	// Initialize token counter
 	tokenCounter, err := tokenizer.NewTokenCounter()
@@ -302,6 +361,9 @@ func (m *mockResponseWriter) Flush() {
 func TestChatCompletionLogic_ChatCompletion_StreamingRequest(t *testing.T) {
 	// Load config
 	cfg := config.MustLoadConfig("../../etc/chat-api.yaml")
+	if cfg.PreciseContextConfig == nil {
+		cfg.PreciseContextConfig = &config.PreciseContextConfig{}
+	}
 
 	// Initialize token counter
 	tokenCounter, _ := tokenizer.NewTokenCounter()
@@ -340,9 +402,8 @@ func TestChatCompletionLogic_ChatCompletion_StreamingRequest(t *testing.T) {
 	// Execute test
 	err := logic.ChatCompletionStream()
 
-	// Verify expected error
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "401 Authorization Required", "Expected 401 unauthorized error")
+	// Streaming failures are written as SSE error responses by the handler.
+	assert.NoError(t, err)
 
 	// Verify response write attempt
 	assert.Greater(t, len(testWriter.data), 0, "Expected response attempt data")

@@ -339,19 +339,11 @@ func saveForwardLog(c *gin.Context, targetURL string, resp *http.Response, respB
 	}
 
 	// Copy request headers
-	for key, values := range c.Request.Header {
-		if len(values) > 0 {
-			forwardLog.Request.Headers[key] = values[0]
-		}
-	}
+	copyForwardHeaders(forwardLog.Request.Headers, c.Request.Header)
 
 	// Copy response headers (only if resp is not nil)
 	if resp != nil {
-		for key, values := range resp.Header {
-			if len(values) > 0 {
-				forwardLog.Response.Headers[key] = values[0]
-			}
-		}
+		copyForwardHeaders(forwardLog.Response.Headers, resp.Header)
 	}
 
 	// Convert log to JSON
@@ -388,6 +380,26 @@ func saveForwardLog(c *gin.Context, targetURL string, resp *http.Response, respB
 	)
 
 	return nil
+}
+
+// copyForwardHeaders copies headers for the forward log only. Credentials are
+// still forwarded upstream by the caller, but must never be persisted verbatim.
+func copyForwardHeaders(dst map[string]string, headers http.Header) {
+	for key, values := range headers {
+		if len(values) == 0 || isSensitiveForwardLogHeader(key) {
+			continue
+		}
+		dst[key] = values[0]
+	}
+}
+
+func isSensitiveForwardLogHeader(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "authorization", "x-apikey", "x-api-key", "cookie":
+		return true
+	default:
+		return false
+	}
 }
 
 // isSSEFormat checks if the response body is in Server-Sent Events (SSE) format

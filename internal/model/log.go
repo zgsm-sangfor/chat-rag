@@ -3,6 +3,7 @@ package model
 import (
 	"bytes"
 	"encoding/json"
+	"net/http"
 	"strings"
 	"time"
 
@@ -50,8 +51,12 @@ type RequestParams struct {
 // ChatLog represents a single chat completion log entry
 type ChatLog struct {
 	WorkspaceInfo WorkspaceInfo `json:"workspace-info"`
+	AgentInfo     *AgentInfo    `json:"agent_info,omitempty"`
 	Identity      Identity      `json:"identity"`
-	Timestamp     time.Time     `json:"timestamp"`
+	// RequestHeaders contains only whitelisted, non-sensitive request headers.
+	// It is persisted with ChatLog but never included in MetricsReport.
+	RequestHeaders map[string]string `json:"request_headers,omitempty"`
+	Timestamp      time.Time         `json:"timestamp"`
 	// Agent information
 	Agent string `json:"agent,omitempty"`
 	// Token statistics
@@ -84,6 +89,32 @@ type ChatLog struct {
 
 	// Degradation trace
 	DegradationTrace []DegradationEvent `json:"degradation_trace,omitempty"`
+}
+
+// MarshalJSON keeps the in-memory identity authentication token available for
+// internal calls (for example metrics reporting) while ensuring it is never
+// written to a persisted ChatLog.
+func (cl ChatLog) MarshalJSON() ([]byte, error) {
+	type chatLogAlias ChatLog
+	sanitized := chatLogAlias(cl)
+	sanitized.Identity.AuthToken = ""
+	if len(sanitized.RequestHeaders) > 0 {
+		headers := make(http.Header, len(sanitized.RequestHeaders))
+		for key, value := range sanitized.RequestHeaders {
+			headers.Set(key, value)
+		}
+		sanitized.RequestHeaders = CaptureSafeRequestHeaders(headers)
+		if len(sanitized.RequestHeaders) == 0 {
+			sanitized.RequestHeaders = nil
+		}
+	}
+	buf := &bytes.Buffer{}
+	encoder := json.NewEncoder(buf)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(sanitized); err != nil {
+		return nil, err
+	}
+	return bytes.TrimSuffix(buf.Bytes(), []byte("\n")), nil
 }
 
 type DegradationEventType string

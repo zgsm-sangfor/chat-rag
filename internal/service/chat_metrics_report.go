@@ -70,6 +70,7 @@ type Label struct {
 // MetricsReport 表示完整的指标上报数据
 type MetricsReport struct {
 	WorkspaceInfo   model.WorkspaceInfo `json:"workspace-info"`
+	AgentInfo       *model.AgentInfo    `json:"agent_info,omitempty"`
 	RequestID       string              `json:"request_id"`
 	UserID          string              `json:"user_id,omitempty"`
 	RequestMetrics  RequestMetrics      `json:"request_metrics"`
@@ -101,6 +102,7 @@ func (mr *ChatMetricsReporter) convertChatLogToReport(chatLog *model.ChatLog, wr
 	}
 	report := &MetricsReport{
 		WorkspaceInfo:   chatLog.WorkspaceInfo,
+		AgentInfo:       chatLog.AgentInfo,
 		RequestID:       chatLog.Identity.RequestID,
 		RequestMetrics:  mr.buildRequestMetrics(chatLog),
 		ResponseMetrics: mr.buildResponseMetrics(chatLog, errors),
@@ -128,8 +130,12 @@ func (mr *ChatMetricsReporter) buildRequestMetrics(chatLog *model.ChatLog) Reque
 		processedUserTokens = chatLog.Tokens.Processed.UserTokens
 	}
 
-	// 重试次数
-	retryNum := 0 // 当前版本忽略
+	// 重试次数来自请求头白名单快照，避免依赖已不在当前作用域的原始 Header。
+	retryHeaders := make(http.Header, len(chatLog.RequestHeaders))
+	for key, value := range chatLog.RequestHeaders {
+		retryHeaders.Set(key, value)
+	}
+	retryNum := model.ExtractRetryCount(retryHeaders)
 
 	return RequestMetrics{
 		SystemTokens:          chatLog.Tokens.Original.SystemTokens,

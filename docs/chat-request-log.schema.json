@@ -1,0 +1,1023 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "chat-rag 对话请求日志",
+  "description": "当前 ChatLog 单个持久化 JSON 文件。required 表示写入端保留此键，值仍可为空。",
+  "$ref": "#/$defs/ChatLog",
+  "$defs": {
+    "ChatLog": {
+      "type": "object",
+      "properties": {
+        "workspace-info": {
+          "$ref": "#/$defs/WorkspaceInfo",
+          "description": "请求归属头快照"
+        },
+        "agent_info": {
+          "$ref": "#/$defs/AgentInfo",
+          "description": "归一化后的客户端、代理链路与父/子 Agent 信息"
+        },
+        "identity": {
+          "$ref": "#/$defs/Identity",
+          "description": "调用方和用户身份"
+        },
+        "request_headers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "严格白名单内的非敏感请求头快照，仅写入日志，不上报 user-indicator"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "请求处理开始时间，含时区"
+        },
+        "agent": {
+          "type": "string",
+          "description": "Prompt 处理流程识别的 Agent"
+        },
+        "tokens": {
+          "$ref": "#/$defs/TokenMetrics",
+          "description": "处理前后的输入 Token 统计"
+        },
+        "is_prompt_proceed": {
+          "type": "boolean",
+          "description": "Prompt 处理步骤是否成功"
+        },
+        "latency": {
+          "$ref": "#/$defs/LatencyMetrics",
+          "description": "模型和请求耗时"
+        },
+        "tool_calls": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/ToolCall"
+          },
+          "description": "服务端工具执行记录，未调用时可为 null"
+        },
+        "params": {
+          "$ref": "#/$defs/RequestParams",
+          "description": "请求模型和参数"
+        },
+        "processed_prompt": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/Message"
+          },
+          "description": "处理后的消息序列，工具执行后可追加上下文"
+        },
+        "response_headers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "description": "采集到的上游响应头，各项为头名到值的映射"
+        },
+        "response_content": {
+          "$ref": "#/$defs/ResponseContent",
+          "description": "从模型响应提取的内容"
+        },
+        "usage": {
+          "$ref": "#/$defs/Usage",
+          "description": "本次模型用量，上游未返回时部分路径会本地估算"
+        },
+        "category": {
+          "type": "string",
+          "description": "可选的请求分类"
+        },
+        "error": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "description": "错误列表，各项以错误类型为键、错误文本为值"
+        },
+        "degradation_trace": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DegradationEvent"
+          },
+          "description": "按顺序记录的降级、重试和切换事件"
+        }
+      },
+      "required": [
+        "workspace-info",
+        "identity",
+        "timestamp",
+        "tokens",
+        "is_prompt_proceed",
+        "latency",
+        "tool_calls",
+        "params",
+        "processed_prompt",
+        "usage"
+      ]
+    },
+    "WorkspaceInfo": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string",
+          "description": "会话 ID，取 X-Session-Id"
+        },
+        "task_id": {
+          "type": "string",
+          "description": "任务 ID，只取 zgsm-task-id，缺失时为空字符串"
+        },
+        "git_url": {
+          "type": "string",
+          "description": "Git 仓库地址"
+        },
+        "git_commit": {
+          "type": "string",
+          "description": "Git 提交标识"
+        },
+        "project_path": {
+          "type": "string",
+          "description": "请求头中的项目路径"
+        },
+        "project_id": {
+          "type": "string",
+          "description": "项目 ID"
+        },
+        "workspace_id": {
+          "type": "string",
+          "description": "工作区 ID"
+        },
+        "workflow_task_id": {
+          "type": "string",
+          "description": "工作流任务 ID"
+        },
+        "workflow_id": {
+          "type": "string",
+          "description": "工作流定义 ID"
+        },
+        "workflow_run_id": {
+          "type": "string",
+          "description": "工作流运行 ID"
+        },
+        "workflow_node_id": {
+          "type": "string",
+          "description": "工作流节点 ID"
+        },
+        "issue_id": {
+          "type": "string",
+          "description": "关联事项 ID"
+        },
+        "node_run_id": {
+          "type": "string",
+          "description": "节点运行 ID"
+        },
+        "request_id": {
+          "type": "string",
+          "description": "请求 ID，取 X-Request-Id"
+        },
+        "known_client": {
+          "type": "string",
+          "description": "已识别客户端标识"
+        },
+        "client_user_agent": {
+          "type": "string",
+          "description": "Client-UserAgent 头"
+        },
+        "user_agent": {
+          "type": "string",
+          "description": "HTTP User-Agent 头"
+        },
+        "agent_type": {
+          "type": "string",
+          "description": "agent-type 头"
+        },
+        "costrict_version": {
+          "type": "string",
+          "description": "CoStrict 版本"
+        }
+      },
+      "required": [
+        "session_id",
+        "task_id",
+        "git_url",
+        "git_commit",
+        "project_path",
+        "project_id",
+        "workspace_id",
+        "workflow_task_id",
+        "issue_id",
+        "node_run_id",
+        "request_id",
+        "known_client",
+        "client_user_agent",
+        "user_agent",
+        "agent_type",
+        "costrict_version"
+      ]
+    },
+    "AgentInfo": {
+      "type": "object",
+      "properties": {
+        "proxy_client": {
+          "type": "string",
+          "description": "代理客户端，如 cs-bridge"
+        },
+        "proxy_version": {
+          "type": "string",
+          "description": "代理版本，如 cs-bridge/<version> 中的 version"
+        },
+        "client_type": {
+          "type": "string",
+          "description": "归一化源客户端：CSC / Codex / Claude Code / DSH / ZCode / OpenCode / Pi"
+        },
+        "client_type_source": {
+          "type": "string",
+          "description": "client_type 的判定来源"
+        },
+        "agent_type": {
+          "type": "string",
+          "description": "Agent-Type 头或归一化后的子代理类型"
+        },
+        "agent_name": {
+          "type": "string",
+          "description": "Agent 名称"
+        },
+        "agent_id": {
+          "type": "string",
+          "description": "当前 Agent 实例 ID"
+        },
+        "parent_agent_id": {
+          "type": "string",
+          "description": "父 Agent 实例 ID"
+        },
+        "root_agent_id": {
+          "type": "string",
+          "description": "根 Agent ID"
+        },
+        "parent_session_id": {
+          "type": "string",
+          "description": "父会话或父线程 ID"
+        },
+        "agent_role": {
+          "type": "string",
+          "enum": [
+            "main",
+            "subagent",
+            "unknown"
+          ],
+          "description": "Agent 角色"
+        },
+        "is_subagent": {
+          "type": "boolean",
+          "description": "是否为子 Agent"
+        },
+        "agent_signal_source": {
+          "type": "string",
+          "description": "父子 Agent 判定的信号来源"
+        },
+        "request_kind": {
+          "type": "string",
+          "description": "请求类别，如 Codex 的 compaction"
+        }
+      }
+    },
+    "Identity": {
+      "type": "object",
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "description": "任务 ID，优先取 zgsm-task-id，缺失时取 X-Session-Id"
+        },
+        "request_id": {
+          "type": "string",
+          "description": "请求 ID，用于关联单次调用及日志文件名"
+        },
+        "client_id": {
+          "type": "string",
+          "description": "客户端 ID"
+        },
+        "client_ide": {
+          "type": "string",
+          "description": "客户端 IDE"
+        },
+        "client_version": {
+          "type": "string",
+          "description": "客户端版本"
+        },
+        "client_os": {
+          "type": "string",
+          "description": "客户端操作系统"
+        },
+        "user_name": {
+          "type": "string",
+          "description": "用户名"
+        },
+        "project_path": {
+          "type": "string",
+          "description": "解码后的项目路径"
+        },
+        "auth_token": {
+          "type": "string",
+          "description": "内存中保留的 Authorization 凭据；ChatLog 持久化序列化时固定为空，严禁落盘"
+        },
+        "login_from": {
+          "type": "string",
+          "description": "登录来源"
+        },
+        "caller": {
+          "type": "string",
+          "description": "调用方标识，默认 chat"
+        },
+        "sender": {
+          "type": "string",
+          "description": "发送方标识，默认 system"
+        },
+        "language": {
+          "type": "string",
+          "description": "请求头中的语言"
+        },
+        "user_info": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UserInfo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "用户资料"
+        }
+      },
+      "required": [
+        "task_id",
+        "request_id",
+        "client_id",
+        "client_ide",
+        "client_version",
+        "client_os",
+        "user_name",
+        "project_path",
+        "auth_token",
+        "login_from",
+        "caller",
+        "sender",
+        "language",
+        "user_info"
+      ]
+    },
+    "UserInfo": {
+      "type": "object",
+      "properties": {
+        "uuid": {
+          "type": "string",
+          "description": "用户唯一标识"
+        },
+        "phone": {
+          "type": "string",
+          "description": "手机号"
+        },
+        "github_id": {
+          "type": "string",
+          "description": "GitHub 用户 ID"
+        },
+        "email": {
+          "type": "string",
+          "description": "电子邮箱"
+        },
+        "name": {
+          "type": "string",
+          "description": "用户名称"
+        },
+        "github_name": {
+          "type": "string",
+          "description": "GitHub 用户名"
+        },
+        "employee_number": {
+          "type": "string",
+          "description": "员工编号"
+        },
+        "department": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DepartmentInfo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "部门层级"
+        },
+        "vip": {
+          "type": "integer",
+          "description": "VIP 标记值"
+        },
+        "vip_expire": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "VIP 到期时间"
+        }
+      },
+      "required": [
+        "uuid",
+        "phone",
+        "github_id",
+        "email",
+        "name",
+        "github_name",
+        "employee_number",
+        "department",
+        "vip",
+        "vip_expire"
+      ]
+    },
+    "DepartmentInfo": {
+      "type": "object",
+      "properties": {
+        "dept_1": {
+          "type": "string",
+          "description": "一级部门"
+        },
+        "dept_2": {
+          "type": "string",
+          "description": "二级部门"
+        },
+        "dept_3": {
+          "type": "string",
+          "description": "三级部门"
+        },
+        "dept_4": {
+          "type": "string",
+          "description": "四级部门"
+        }
+      },
+      "required": [
+        "dept_1",
+        "dept_2",
+        "dept_3",
+        "dept_4"
+      ]
+    },
+    "LatencyMetrics": {
+      "type": "object",
+      "properties": {
+        "main_model_latency_ms": {
+          "type": "integer",
+          "description": "模型调用阶段耗时，毫秒"
+        },
+        "total_latency_ms": {
+          "type": "integer",
+          "description": "本次请求从开始处理到记录结束的耗时，毫秒"
+        },
+        "first_token_latency_ms": {
+          "type": "integer",
+          "description": "开始调用模型到收到首个有效流式内容的耗时，毫秒"
+        },
+        "window_latency_ms_ms": {
+          "type": "integer",
+          "description": "开始调用模型到首个输出窗口达到发送条件的耗时，毫秒。字段名保留双 ms"
+        },
+        "chunk_info": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StreamChunkInfo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "流式分块间隔统计，无统计时为 null"
+        }
+      },
+      "required": [
+        "main_model_latency_ms",
+        "total_latency_ms",
+        "first_token_latency_ms",
+        "window_latency_ms_ms",
+        "chunk_info"
+      ]
+    },
+    "StreamChunkInfo": {
+      "type": "object",
+      "properties": {
+        "chunk_total": {
+          "type": "integer",
+          "description": "纳入统计的间隔样本数"
+        },
+        "interval_avg": {
+          "type": "number",
+          "description": "平均间隔，毫秒"
+        },
+        "interval_min": {
+          "type": "number",
+          "description": "最短间隔，毫秒"
+        },
+        "interval_max": {
+          "type": "number",
+          "description": "最长间隔，毫秒"
+        },
+        "variance": {
+          "type": "number",
+          "description": "间隔方差，平方毫秒"
+        },
+        "std_deviation": {
+          "type": "number",
+          "description": "间隔标准差，毫秒"
+        },
+        "p50": {
+          "type": "number",
+          "description": "间隔第 50 百分位，毫秒"
+        },
+        "p95": {
+          "type": "number",
+          "description": "间隔第 95 百分位，毫秒"
+        },
+        "p99": {
+          "type": "number",
+          "description": "间隔第 99 百分位，毫秒"
+        }
+      },
+      "required": [
+        "chunk_total",
+        "interval_avg",
+        "interval_min",
+        "interval_max",
+        "variance",
+        "std_deviation",
+        "p50",
+        "p95",
+        "p99"
+      ]
+    },
+    "ToolCall": {
+      "type": "object",
+      "properties": {
+        "tool_name": {
+          "type": "string",
+          "description": "工具名"
+        },
+        "tool_input": {
+          "type": "string",
+          "description": "工具输入文本"
+        },
+        "tool_output": {
+          "type": "string",
+          "description": "工具输出文本"
+        },
+        "result_status": {
+          "type": "string",
+          "description": "执行结果状态"
+        },
+        "latency": {
+          "type": "integer",
+          "description": "工具执行耗时，毫秒"
+        },
+        "error": {
+          "type": "string",
+          "description": "执行错误信息"
+        }
+      },
+      "required": [
+        "tool_name",
+        "tool_input",
+        "tool_output",
+        "result_status",
+        "latency",
+        "error"
+      ]
+    },
+    "RequestParams": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string",
+          "description": "请求指定的模型名或路由别名"
+        },
+        "routed_model": {
+          "type": "string",
+          "description": "请求结束时选中的模型名"
+        },
+        "llm_params": {
+          "$ref": "#/$defs/LLMRequestParams",
+          "description": "记录的模型调用参数，含消息和透传字段"
+        }
+      },
+      "required": [
+        "model",
+        "llm_params"
+      ]
+    },
+    "TokenMetrics": {
+      "type": "object",
+      "properties": {
+        "original": {
+          "$ref": "#/$defs/TokenStats",
+          "description": "原始输入计数"
+        },
+        "processed": {
+          "$ref": "#/$defs/TokenStats",
+          "description": "处理后输入计数"
+        },
+        "ratios": {
+          "$ref": "#/$defs/TokenRatio",
+          "description": "处理后与处理前的 Token 数量比值"
+        }
+      },
+      "required": [
+        "original",
+        "processed",
+        "ratios"
+      ]
+    },
+    "TokenStats": {
+      "type": "object",
+      "properties": {
+        "system_tokens": {
+          "type": "integer",
+          "description": "按总数减非 system 消息计数得到的 Token 数"
+        },
+        "user_tokens": {
+          "type": "integer",
+          "description": "非 system 角色消息的 Token 数，包括 user、assistant 和 tool"
+        },
+        "all": {
+          "type": "integer",
+          "description": "全部消息 Token 数"
+        }
+      },
+      "required": [
+        "system_tokens",
+        "user_tokens",
+        "all"
+      ]
+    },
+    "TokenRatio": {
+      "type": "object",
+      "properties": {
+        "system_ratio": {
+          "type": "number",
+          "description": "系统部分比值"
+        },
+        "user_ratio": {
+          "type": "number",
+          "description": "用户部分比值"
+        },
+        "all_ratio": {
+          "type": "number",
+          "description": "总体比值，1 表示计数相同"
+        }
+      },
+      "required": [
+        "system_ratio",
+        "user_ratio",
+        "all_ratio"
+      ]
+    },
+    "Usage": {
+      "type": "object",
+      "properties": {
+        "prompt_tokens": {
+          "type": "integer",
+          "description": "模型输入 Token 数"
+        },
+        "completion_tokens": {
+          "type": "integer",
+          "description": "模型输出 Token 数"
+        },
+        "total_tokens": {
+          "type": "integer",
+          "description": "总 Token 数"
+        },
+        "cached_tokens": {
+          "type": "integer",
+          "description": "缓存命中的输入 Token 数"
+        }
+      },
+      "required": [
+        "prompt_tokens",
+        "completion_tokens",
+        "total_tokens",
+        "cached_tokens"
+      ]
+    },
+    "ResponseContent": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "type": "string",
+          "description": "响应角色"
+        },
+        "content": {
+          "type": "string",
+          "description": "模型输出正文"
+        },
+        "reasoning_content": {
+          "type": "string",
+          "description": "上游返回的推理内容"
+        },
+        "tool_calls": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ToolCallInfo"
+          },
+          "description": "模型返回的工具调用请求"
+        }
+      }
+    },
+    "ToolCallInfo": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "调用 ID"
+        },
+        "type": {
+          "type": "string",
+          "description": "调用类型"
+        },
+        "function": {
+          "$ref": "#/$defs/ToolCallFunction",
+          "description": "函数调用信息"
+        }
+      }
+    },
+    "ToolCallFunction": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "函数名称"
+        },
+        "arguments": {
+          "type": "string",
+          "description": "序列化为字符串的函数参数"
+        }
+      }
+    },
+    "DegradationEvent": {
+      "type": "object",
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "description": "事件序号"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "事件发生时间"
+        },
+        "event": {
+          "type": "string",
+          "enum": [
+            "degradation_started",
+            "attempt_started",
+            "attempt_failed",
+            "retry_scheduled",
+            "retry_skipped_insufficient_budget",
+            "model_switch",
+            "degradation_stopped",
+            "model_succeeded",
+            "trace_truncated"
+          ],
+          "description": "事件类型"
+        },
+        "model": {
+          "type": "string",
+          "description": "关联模型"
+        },
+        "previous_model": {
+          "type": "string",
+          "description": "切换前模型"
+        },
+        "ordered_models": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "按尝试顺序排列的候选模型"
+        },
+        "model_index": {
+          "type": "integer",
+          "description": "候选模型下标，从 0 开始，截断标记可为 -1"
+        },
+        "attempt": {
+          "type": "integer",
+          "description": "本模型第几次尝试，从 1 开始"
+        },
+        "max_retries": {
+          "type": "integer",
+          "description": "最大重试次数"
+        },
+        "retryable": {
+          "type": "boolean",
+          "description": "是否可重试"
+        },
+        "switchable": {
+          "type": "boolean",
+          "description": "是否可切换模型"
+        },
+        "status_code": {
+          "type": "integer",
+          "description": "HTTP 状态码"
+        },
+        "error_code": {
+          "type": "string",
+          "description": "错误代码"
+        },
+        "error_type": {
+          "type": "string",
+          "description": "错误类型"
+        },
+        "error_message": {
+          "type": "string",
+          "description": "错误详情"
+        },
+        "elapsed_ms": {
+          "type": "integer",
+          "description": "该次尝试已用毫秒数"
+        },
+        "reason": {
+          "type": "string",
+          "description": "决策原因"
+        },
+        "compatibility_signal": {
+          "type": "boolean",
+          "description": "错误信息是否含兼容性信号"
+        }
+      },
+      "required": [
+        "sequence",
+        "timestamp",
+        "event",
+        "model_index"
+      ]
+    },
+    "Message": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "type": "string",
+          "description": "消息角色"
+        },
+        "content": {
+          "description": "消息内容，可以是文本、结构化内容块或 null"
+        }
+      },
+      "required": [
+        "role",
+        "content"
+      ]
+    },
+    "ExtraBody": {
+      "type": "object",
+      "properties": {
+        "prompt_mode": {
+          "type": "string",
+          "description": "Prompt 处理模式"
+        },
+        "mode": {
+          "type": "string",
+          "description": "调用方提供的模式"
+        }
+      }
+    },
+    "LLMRequestParams": {
+      "type": "object",
+      "properties": {
+        "priority": {
+          "type": "integer",
+          "description": "请求优先级"
+        },
+        "extra_body": {
+          "$ref": "#/$defs/ExtraBody",
+          "description": "扩展参数，可包含透传字段"
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Message"
+          },
+          "description": "请求参数中的输入消息"
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "workspace-info": {
+        "session_id": "session-demo",
+        "task_id": "",
+        "git_url": "",
+        "git_commit": "",
+        "project_path": "/demo/project",
+        "project_id": "",
+        "workspace_id": "",
+        "workflow_task_id": "",
+        "issue_id": "",
+        "node_run_id": "",
+        "request_id": "request-demo",
+        "known_client": "",
+        "client_user_agent": "",
+        "user_agent": "",
+        "agent_type": "",
+        "costrict_version": ""
+      },
+      "identity": {
+        "task_id": "session-demo",
+        "request_id": "request-demo",
+        "client_id": "",
+        "client_ide": "",
+        "client_version": "",
+        "client_os": "",
+        "user_name": "demo",
+        "project_path": "/demo/project",
+        "auth_token": "[已脱敏]",
+        "login_from": "",
+        "caller": "chat",
+        "sender": "user",
+        "language": "",
+        "user_info": {
+          "uuid": "",
+          "phone": "",
+          "github_id": "",
+          "email": "",
+          "name": "demo",
+          "github_name": "",
+          "employee_number": "",
+          "department": null,
+          "vip": 0,
+          "vip_expire": null
+        }
+      },
+      "timestamp": "2026-11-24T10:00:00+08:00",
+      "tokens": {
+        "original": {
+          "system_tokens": 0,
+          "user_tokens": 9,
+          "all": 9
+        },
+        "processed": {
+          "system_tokens": 0,
+          "user_tokens": 9,
+          "all": 9
+        },
+        "ratios": {
+          "system_ratio": 0,
+          "user_ratio": 1,
+          "all_ratio": 1
+        }
+      },
+      "is_prompt_proceed": true,
+      "latency": {
+        "main_model_latency_ms": 480,
+        "total_latency_ms": 508,
+        "first_token_latency_ms": 0,
+        "window_latency_ms_ms": 0,
+        "chunk_info": null
+      },
+      "tool_calls": null,
+      "params": {
+        "model": "auto",
+        "routed_model": "demo-model",
+        "llm_params": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "这个项目的入口在哪里？"
+            }
+          ],
+          "stream": false
+        }
+      },
+      "processed_prompt": [
+        {
+          "role": "user",
+          "content": "这个项目的入口在哪里？"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 14,
+        "completion_tokens": 7,
+        "total_tokens": 21,
+        "cached_tokens": 0
+      },
+      "response_content": {
+        "content": "入口在 main.go。"
+      }
+    }
+  ]
+}

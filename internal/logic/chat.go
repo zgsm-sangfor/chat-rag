@@ -156,9 +156,11 @@ func (l *ChatCompletionLogic) newChatLog(startTime time.Time) *model.ChatLog {
 	}
 
 	return &model.ChatLog{
-		WorkspaceInfo: model.NewWorkspaceInfo(headers),
-		Identity:      *l.identity,
-		Timestamp:     startTime,
+		WorkspaceInfo:  model.NewWorkspaceInfo(headers),
+		AgentInfo:      model.NewAgentInfo(headers, l.identity),
+		Identity:       *l.identity,
+		RequestHeaders: model.CaptureSafeRequestHeaders(headers),
+		Timestamp:      startTime,
 		Params: model.RequestParams{
 			Model:     modelName,
 			LlmParams: l.request.LLMRequestParams,

@@ -2,6 +2,8 @@ package service
 
 import (
 	"encoding/json"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/zgsm-ai/chat-rag/internal/model"
@@ -29,6 +31,57 @@ func TestBuildResponseMetrics_UpstreamTraceID(t *testing.T) {
 	}
 	if string(payload) == "" || !containsJSONField(payload, "upstream_trace_id", "trace-final") {
 		t.Fatalf("payload does not contain response_metrics.upstream_trace_id: %s", payload)
+	}
+}
+
+func TestBuildRequestMetrics_RetryNumFromRequestHeaders(t *testing.T) {
+	reporter := NewChatMetricsReporter("", "", "")
+	chatLog := &model.ChatLog{
+		RequestHeaders: map[string]string{
+			"x-stainless-retry-count": "3",
+		},
+	}
+
+	metrics := reporter.buildRequestMetrics(chatLog)
+	if metrics.RetryNum != 3 {
+		t.Fatalf("RetryNum = %d, want 3", metrics.RetryNum)
+	}
+}
+
+func TestMetricsReport_AgentInfoAndCredentialSafety(t *testing.T) {
+	headers := make(http.Header)
+	headers.Set("Authorization", "Bearer report-secret")
+	headers.Set("X-Apikey", "costrict_team_report_secret")
+	headers.Set("Cookie", "sid=report-cookie-secret")
+	headers.Set("User-Agent", "csc/4.2.48")
+	headers.Set("X-Stainless-Retry-Count", "4")
+
+	chatLog := &model.ChatLog{
+		AgentInfo:      model.NewAgentInfo(headers, nil),
+		Identity:       model.Identity{AuthToken: headers.Get("Authorization")},
+		RequestHeaders: model.CaptureSafeRequestHeaders(headers),
+	}
+
+	reporter := NewChatMetricsReporter("", "", "")
+	report := reporter.convertChatLogToReport(chatLog, nil)
+	payload, err := json.Marshal(report)
+	if err != nil {
+		t.Fatalf("marshal report: %v", err)
+	}
+
+	if report.AgentInfo == nil || report.AgentInfo.ClientType != "CSC" {
+		t.Fatalf("AgentInfo = %+v, want CSC", report.AgentInfo)
+	}
+	if report.RequestMetrics.RetryNum != 4 {
+		t.Fatalf("RetryNum = %d, want 4", report.RequestMetrics.RetryNum)
+	}
+	if strings.Contains(string(payload), "request_headers") {
+		t.Fatalf("metrics report must not include request_headers: %s", payload)
+	}
+	for _, secret := range []string{"report-secret", "Bearer", "costrict_team_report_secret", "report-cookie-secret"} {
+		if strings.Contains(string(payload), secret) {
+			t.Fatalf("metrics report leaked %q: %s", secret, payload)
+		}
 	}
 }
 
