@@ -21,6 +21,7 @@ const (
 
 type Identity struct {
 	TaskID        string    `json:"task_id"`
+	UserSubID     string    `json:"user_sub_id"`
 	RequestID     string    `json:"request_id"`
 	ClientID      string    `json:"client_id"`
 	ClientIDE     string    `json:"client_ide"`
@@ -60,6 +61,7 @@ type DepartmentInfo struct {
 
 // JWTClaims defines the JWT claims structure
 type JWTClaims struct {
+	Subject     string                 `json:"sub,omitempty"`
 	Name        string                 `json:"name"`
 	DisplayName string                 `json:"display_name"`
 	Phone       string                 `json:"phone"`
@@ -83,19 +85,33 @@ type CustomProperties struct {
 
 // NewUserInfo creates user info from JWT token
 func NewUserInfo(jwtToken string) *UserInfo {
+	userInfo, _ := NewUserInfoWithSub(jwtToken)
+	return userInfo
+}
+
+// NewUserInfoWithSub creates user info from a JWT token and returns the
+// prefixed subject claim when it is a valid user subject.
+func NewUserInfoWithSub(jwtToken string) (*UserInfo, string) {
 	claims, err := parseJWT(jwtToken)
 	if err != nil {
 		logger.Error("Failed to parse JWT:", zap.Error(err))
-		return &UserInfo{}
+		return &UserInfo{}, ""
 	}
 
 	userInfo, err := extractUserInfo(claims)
 	if err != nil {
 		logger.Error("Failed to extract user info:", zap.Error(err))
-		return &UserInfo{}
+		return &UserInfo{}, ""
 	}
 
-	return userInfo
+	return userInfo, extractUserSubID(claims.Subject)
+}
+
+func extractUserSubID(subject string) string {
+	if strings.HasPrefix(subject, "usr_") {
+		return subject
+	}
+	return ""
 }
 
 // parseJWT parses JWT token
@@ -119,6 +135,9 @@ func parseJWT(tokenString string) (*JWTClaims, error) {
 func mapClaimsToJWTClaims(claims jwt.MapClaims) (*JWTClaims, error) {
 	var jwtClaims JWTClaims
 
+	if subject, ok := claims["sub"].(string); ok {
+		jwtClaims.Subject = subject
+	}
 	if name, ok := claims["name"].(string); ok {
 		jwtClaims.Name = name
 	}

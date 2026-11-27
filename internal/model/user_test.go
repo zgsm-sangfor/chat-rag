@@ -100,6 +100,36 @@ func TestNewUserInfo(t *testing.T) {
 	}
 }
 
+func TestNewUserInfoWithSub(t *testing.T) {
+	tests := []struct {
+		name string
+		sub  interface{}
+		want string
+	}{
+		{name: "valid user subject", sub: "usr_123", want: "usr_123"},
+		{name: "subject with only prefix", sub: "usr_", want: "usr_"},
+		{name: "missing subject"},
+		{name: "non-user subject", sub: "user_123"},
+		{name: "empty subject", sub: ""},
+		{name: "non-string subject", sub: 123},
+		{name: "subject with leading space", sub: " usr_123"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			claims := jwt.MapClaims{
+				"universal_id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+			}
+			if tt.sub != nil {
+				claims["sub"] = tt.sub
+			}
+
+			_, got := NewUserInfoWithSub(createTestToken(claims))
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestUserNameClaimPriority(t *testing.T) {
 	tests := []struct {
 		name   string

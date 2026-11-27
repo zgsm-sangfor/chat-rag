@@ -28,12 +28,13 @@ func GetIdentityFromHeaders(c *gin.Context) *model.Identity {
 	}
 
 	jwtToken := c.GetHeader(types.HeaderAuthorization)
-	userInfo := model.NewUserInfo(jwtToken)
+	userInfo, userSubID := model.NewUserInfoWithSub(jwtToken)
 	logger.Info("User info:", zap.Any("userInfo", userInfo))
 
 	return &model.Identity{
 		RequestID:     c.GetHeader(types.HeaderRequestId),
 		TaskID:        getTaskID(c),
+		UserSubID:     userSubID,
 		ClientID:      c.GetHeader(types.HeaderClientId),
 		ClientIDE:     clientIDE,
 		ClientVersion: c.GetHeader(types.HeaderClientVersion),

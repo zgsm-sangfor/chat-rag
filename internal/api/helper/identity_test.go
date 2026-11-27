@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt"
 	"github.com/zgsm-ai/chat-rag/internal/model"
 )
 
@@ -51,6 +52,61 @@ func TestGetIdentityFromHeadersTaskID(t *testing.T) {
 			}
 			if logged.Identity.TaskID != tt.want {
 				t.Fatalf("logged task_id = %q, want %q", logged.Identity.TaskID, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetIdentityFromHeadersUserSubID(t *testing.T) {
+	tests := []struct {
+		name string
+		sub  interface{}
+		want string
+	}{
+		{name: "valid user subject", sub: "usr_123", want: "usr_123"},
+		{name: "missing subject"},
+		{name: "non-user subject", sub: "user_123"},
+		{name: "empty subject", sub: ""},
+		{name: "non-string subject", sub: 123},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			claims := jwt.MapClaims{
+				"universal_id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+			}
+			if tt.sub != nil {
+				claims["sub"] = tt.sub
+			}
+			token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+			tokenString, err := token.SignedString([]byte("test-secret"))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+			c.Request.Header.Set("Authorization", tokenString)
+
+			identity := GetIdentityFromHeaders(c)
+			if identity.UserSubID != tt.want {
+				t.Fatalf("UserSubID = %q, want %q", identity.UserSubID, tt.want)
+			}
+
+			payload, err := json.Marshal(model.ChatLog{Identity: *identity})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var logged struct {
+				Identity struct {
+					UserSubID string `json:"user_sub_id"`
+				} `json:"identity"`
+			}
+			if err := json.Unmarshal(payload, &logged); err != nil {
+				t.Fatal(err)
+			}
+			if logged.Identity.UserSubID != tt.want {
+				t.Fatalf("logged user_sub_id = %q, want %q", logged.Identity.UserSubID, tt.want)
 			}
 		})
 	}
